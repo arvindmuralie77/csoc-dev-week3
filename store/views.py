@@ -1,31 +1,72 @@
-from django.shortcuts import render
+from django.shortcuts import render,render_to_response,redirect
 from django.shortcuts import get_object_or_404
 from store.models import *
+from store.forms import *
 from django.contrib.auth.decorators import login_required
-from django.http import JsonResponse
+from django.http import *
 from django.views.decorators.csrf import csrf_exempt
+import datetime
+from django.contrib.auth import authenticate, login, logout
+from django.template import RequestContext
+from django.contrib.auth.forms import UserCreationForm
 
 # Create your views here.
 
 def index(request):
     return render(request, 'store/index.html')
 
+def login_user(request):
+    logout(request)
+    username = password = ''
+    if request.POST:
+        username = request.POST['username']
+        password = request.POST['password']
+
+        user = authenticate(username=username, password=password)
+        if user is not None:
+            if user.is_active:
+                login(request, user)
+                return HttpResponseRedirect('/')
+
+    return HttpResponseRedirect('/accounts/login')
+
+def signup(request):
+    if request.method == 'POST':
+        form = SignUpForm(request.POST)
+        if form.is_valid():
+            form.save()
+            username = form.cleaned_data.get('username')
+            raw_password = form.cleaned_data.get('password1')
+            user = authenticate(username=username, password=raw_password)
+            login(request, user)
+            return redirect('/')
+    else:
+        form = SignUpForm()
+    return render(request, 'store/signup.html', {'form': form})
+
 def bookDetailView(request, bid):
     template_name='store/book_detail.html'
-    context={
-        'book':None, # set this to an instance of the required book
-        'num_available':None, # set this 1 if any copy of this book is available, otherwise 0
-    }
+    
     # START YOUR CODE HERE
-    
-    
+    objId = Book.objects.get(id = bid)
+    if Book.objects.filter(id = bid).exists():
+        numBooks = 1
+    else:
+        numBooks = 0      
+    context={
+        'book':objId, # set this to an instance of the required book
+        'num_available':numBooks, # set this 1 if any copy of this book is available, otherwise 0
+    }
     return render(request,template_name, context=context)
 
 
 def bookListView(request):
     template_name='store/book_list.html'
+    books = []
+    for obj in Book.objects.all():
+        books.append(obj)
     context={
-        'books':None, # set here the list of required books upon filtering using the GET parameters
+        'books':books, # set here the list of required books upon filtering using the GET parameters
     }
     get_data=request.GET
     # START YOUR CODE HERE
@@ -36,8 +77,11 @@ def bookListView(request):
 @login_required
 def viewLoanedBooks(request):
     template_name='store/loaned_books.html'
+    books = []
+    for book in BookCopy.objects.filter(status=False):
+        books.append(book)
     context={
-        'books':None,
+        'books': books,
     }
     '''
     The above key books in dictionary context should contain a list of instances of the 
@@ -51,19 +95,31 @@ def viewLoanedBooks(request):
 
 @csrf_exempt
 @login_required
-def loanBookView(request):
-    response_data={
-        'message':None,
-    }
+def loanBookView(request):  
+    
     '''
     Check if an instance of the asked book is available.
     If yes, then set message to 'success', otherwise 'failure'
     '''
     # START YOUR CODE HERE
-    book_id = None # get the book id from post data
-
-
+    #message = 'success'
+    book_id = request.POST.get("bid") # get the book id from post data
+    obj = Book.objects.get(id=book_id) #Book.objects.filter(id=book_id)
+    message = 0
+    try:
+        book_copy = BookCopy.objects.get(book = obj)
+    except:
+        message = 1
+        BookCopy.objects.create(borrower = request.user, book = obj, borrow_date = datetime.datetime.now().date())
+    if book_copy.status == True:
+        message =1
+        book_copy.status = False
+        book_copy.save()
+    response_data={
+        'message': message,
+    }
     return JsonResponse(response_data)
+    
 
 '''
 FILL IN THE BELOW VIEW BY YOURSELF.
@@ -75,6 +131,30 @@ to make this feature complete
 @csrf_exempt
 @login_required
 def returnBookView(request):
-    pass
+    book_id = request.POST.get("bid")
+    obj = Book.objects.get(id=book_id)
+    book_copy = BookCopy.objects.get(book = book_id)
+    book_copy.status = True
+    book_copy.save()
+    response_data={
+        'messsage': 1
+    }
+    return JsonResponse(response_data)
 
-
+@csrf_exempt
+@login_required
+def returnRating(request):
+    book_id = request.POST.get("bid")
+    obj = Book.objects.get(id=book_id)
+    rating = float(request.POST.get("rValue"))
+    number = 0
+    obj.totalRating = obj.totalRating+rating
+    obj.number = obj.number+1
+    obj.save()
+    if obj.number != 0:
+        obj.rating = round(obj.totalRating/obj.number,2)
+        obj.save()
+    response_data={
+        'messsage': 1
+    }
+    return JsonResponse(response_data)

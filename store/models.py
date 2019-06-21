@@ -8,6 +8,8 @@ class Book(models.Model):
     description=models.TextField(null=True)
     mrp=models.PositiveIntegerField()
     rating=models.FloatField(default=0.0)
+    totalRating=models.FloatField(default=0.0)
+    number=models.FloatField(default=0.0)
     class Meta:
         ordering=('title',)
     def __str__(self):
@@ -21,4 +23,5 @@ class BookCopy(models.Model):
     borrower=models.ForeignKey(User,related_name='borrower',null=True,on_delete=models.SET_NULL)
     def __str__(self):
         return f'{self.book.title} , {str(self.borrow_date)}'
+
 
