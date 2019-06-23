@@ -49,13 +49,26 @@ def bookDetailView(request, bid):
     
     # START YOUR CODE HERE
     objId = Book.objects.get(id = bid)
-    if Book.objects.filter(id = bid).exists():
+    value = 0.0
+    try:
+        book_copy = BookCopy.objects.get(book = objId)
+        if book_copy.status:
+            numBooks = 1
+        else:
+            numBooks = 0 
+    except:
+        BookCopy.objects.create(status=True, book = objId)
         numBooks = 1
-    else:
-        numBooks = 0      
+    value = 0.0
+    try:
+        book_r = userRating.objects.get(bname=objId,user=request.user)
+        value = book_r.value 
+    except:
+        userRating.objects.create(bname=objId,user=request.user)  
     context={
         'book':objId, # set this to an instance of the required book
         'num_available':numBooks, # set this 1 if any copy of this book is available, otherwise 0
+        'book_copy':value
     }
     return render(request,template_name, context=context)
 
@@ -78,7 +91,7 @@ def bookListView(request):
 def viewLoanedBooks(request):
     template_name='store/loaned_books.html'
     books = []
-    for book in BookCopy.objects.filter(status=False):
+    for book in BookCopy.objects.filter(status=False,borrower=request.user):
         books.append(book)
     context={
         'books': books,
@@ -105,15 +118,13 @@ def loanBookView(request):
     #message = 'success'
     book_id = request.POST.get("bid") # get the book id from post data
     obj = Book.objects.get(id=book_id) #Book.objects.filter(id=book_id)
+    book_copy = BookCopy.objects.get(book = obj)
     message = 0
-    try:
-        book_copy = BookCopy.objects.get(book = obj)
-    except:
-        message = 1
-        BookCopy.objects.create(borrower = request.user, book = obj, borrow_date = datetime.datetime.now().date())
     if book_copy.status == True:
         message =1
         book_copy.status = False
+        book_copy.borrower = request.user
+        book_copy.borrow_date = datetime.datetime.now().date()
         book_copy.save()
     response_data={
         'message': message,
@@ -146,7 +157,10 @@ def returnBookView(request):
 def returnRating(request):
     book_id = request.POST.get("bid")
     obj = Book.objects.get(id=book_id)
+    book_r = userRating.objects.get(bname=book_id,user=request.user)
     rating = float(request.POST.get("rValue"))
+    book_r.value=rating
+    book_r.save()    
     number = 0
     obj.totalRating = obj.totalRating+rating
     obj.number = obj.number+1

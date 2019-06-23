@@ -23,5 +23,8 @@ class BookCopy(models.Model):
     borrower=models.ForeignKey(User,related_name='borrower',null=True,on_delete=models.SET_NULL)
     def __str__(self):
         return f'{self.book.title} , {str(self.borrow_date)}'
-
+class userRating(models.Model):
+    bname=models.ForeignKey(Book,on_delete=models.CASCADE)
+    user=models.ForeignKey(User,related_name='user',null=True,on_delete=models.SET_NULL)
+    value=models.FloatField(default=0.0)
 
